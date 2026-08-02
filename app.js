@@ -25,6 +25,7 @@ const state = {
   originalImages: [],
   pendingNewImages: [],   // 本次编辑新增、尚未保存的图片文件 rel
   inlineImageRels: [],    // content 里内嵌图片 rel（编辑时保留）
+  loadedEmpty: false,     // 加载到的想法数为 0（防误覆盖警告）
 };
 
 let savedHandle = null; // IndexedDB 里记住的文件夹句柄
@@ -438,6 +439,7 @@ async function addImageBlob(blob) {
 async function saveEdit() {
   const it = state.edit;
   if (!it) return;
+  if (state.loadedEmpty && !confirm('警告：当前文件夹里没有任何想法（可能是选错了文件夹，或 Syncthing 还没同步完成）。继续保存会覆盖这个空文件，确定吗？')) return;
   it.title = $('#edit-title').value.trim();
   const text = $('#edit-content').value;
   const segs = [];
@@ -522,9 +524,21 @@ function bindEvents() {
 }
 
 /* ================= 初始化 ================= */
+function updateEmptyWarn() {
+  const el = document.getElementById ? document.getElementById('empty-warn') : null;
+  if (!el) return;
+  if (state.loadedEmpty) {
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
 async function refresh() {
   try {
     state.ideas = await loadIdeas();
+    state.loadedEmpty = state.ideas.length === 0;
+    updateEmptyWarn();
     renderList();
     const where = state.useSub ? 'data\\ideas.json' : 'ideas.json';
     $('#folder-info').textContent = '📁 ' + where + '（' + (state.dir ? state.dir.name : '') + '）· Syncthing 自动同步';
