@@ -1,4 +1,4 @@
-const CACHE = 'idea-collector-v1';
+const CACHE = 'idea-collector-v2';
 const ASSETS = [
   './', './index.html', './app.css', './app.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png'
