@@ -71,13 +71,38 @@ async function idbDel(key) {
 function supportFS() { return 'showDirectoryPicker' in window; }
 
 async function pickFolder() {
+  const btn = document.getElementById ? document.getElementById('btn-pick') : null;
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '正在打开文件夹选择…'; }
   try {
+    // 同步调用（前面不加 await），避免“用户激活被消耗”导致选择器不弹出
     const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
     await idbSet(HANDLE_KEY, dir);
     await connect(dir);
   } catch (e) {
-    if (e && e.name === 'AbortError') return; // 用户取消
-    toast('选择文件夹失败：' + (e && e.message ? e.message : e));
+    const name = e && e.name ? e.name : '';
+    const msg = e && e.message ? e.message : String(e);
+    if (name === 'AbortError') {
+      // 部分 Chrome/安卓系统会静默中止，自动重试一次
+      try {
+        await new Promise((r) => setTimeout(r, 400));
+        const dir2 = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await idbSet(HANDLE_KEY, dir2);
+        await connect(dir2);
+      } catch (e2) {
+        const n2 = e2 && e2.name ? e2.name : '';
+        const m2 = e2 && e2.message ? e2.message : String(e2);
+        if (n2 === 'AbortError') {
+          alert('文件夹选择窗口没有打开。\n\n可能原因：\n1) Chrome 版本过旧或过新（142+ 曾有选择器故障，请升级到最新版）\n2) 系统文件管理器异常（可试试 Edge 浏览器）\n\n页面底部会显示你的浏览器版本，发给我即可排查。');
+        } else {
+          alert('选择文件夹失败：' + n2 + ' ' + m2);
+        }
+      }
+    } else {
+      alert('选择文件夹失败：' + name + ' ' + msg);
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText; }
   }
 }
 
@@ -125,8 +150,13 @@ async function switchFolder() {
     await idbSet(HANDLE_KEY, dir);
     await connect(dir);
   } catch (e) {
-    if (e && e.name === 'AbortError') return;
-    toast('切换失败：' + (e && e.message ? e.message : e));
+    const name = e && e.name ? e.name : '';
+    const msg = e && e.message ? e.message : String(e);
+    if (name === 'AbortError') {
+      alert('文件夹选择窗口没有打开。请升级 Chrome 到最新版，或换用 Edge 重试。');
+      return;
+    }
+    alert('切换失败：' + name + ' ' + msg);
   }
 }
 
@@ -503,7 +533,21 @@ async function refresh() {
   }
 }
 
+function fillDiagnostics() {
+  const el = document.getElementById ? document.getElementById('diag') : null;
+  if (!el) return;
+  const ua = navigator.userAgent || '';
+  const chrome = ua.match(/Chrome\/([\d.]+)/);
+  const isEdge = ua.indexOf('Edg/') >= 0;
+  const isWeChat = ua.indexOf('MicroMessenger') >= 0;
+  const name = isWeChat ? '微信内置浏览器' : isEdge ? 'Edge' : (ua.indexOf('SamsungBrowser') >= 0 ? '三星浏览器' : 'Chromium/Chrome');
+  const ver = chrome ? chrome[1] : '未知';
+  const proto = (typeof location !== 'undefined' && location && location.protocol) ? location.protocol : 'n/a';
+  el.textContent = '浏览器：' + name + ' ' + ver + '｜文件夹API：' + (supportFS() ? '支持' : '不支持') + '｜协议：' + proto;
+}
+
 async function init() {
+  fillDiagnostics();
   if (!supportFS()) {
     $('#welcome-desc').innerHTML = '当前浏览器不支持文件夹访问。<br>请用手机 <b>Chrome</b> 或 <b>Edge</b>（132 以上）打开本页面。';
     $('#btn-pick').style.display = 'none';
