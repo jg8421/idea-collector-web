@@ -161,3 +161,8 @@ body {
   max-width: 86vw; text-align: center;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.warn {
+  margin: 8px 12px 0; padding: 12px 14px;
+  background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+  border-radius: 12px; font-size: 13px; line-height: 1.6;
+}
