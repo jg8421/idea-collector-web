@@ -29,6 +29,7 @@ const state = {
 };
 
 let savedHandle = null; // IndexedDB 里记住的文件夹句柄
+let savedGranted = false; // 已保存句柄是否确认过读写权限
 const thumbCache = new Map(); // rel -> objectURL
 
 /* ================= IndexedDB：记住文件夹句柄 ================= */
@@ -99,6 +100,8 @@ async function pickFolder() {
           alert('选择文件夹失败：' + n2 + ' ' + m2);
         }
       }
+    } else if (name === 'NotAllowedError') {
+      alert('选择文件夹失败：浏览器要求必须由点击按钮直接触发选择窗口。\n请把 Chrome/Edge 升级到最新版，再点一次「选择同步文件夹」。');
     } else {
       alert('选择文件夹失败：' + name + ' ' + msg);
     }
@@ -484,11 +487,11 @@ async function deleteCurrent() {
 /* ================= 事件 ================= */
 function bindEvents() {
   $('#btn-pick').addEventListener('click', async () => {
-    if (savedHandle) {
-      try {
-        if (await ensurePermission(savedHandle)) { await connect(savedHandle); return; }
-      } catch (e) { /* 句柄失效，走重新选择 */ }
+    const saved = savedHandle;
+    if (saved && savedGranted) {
+      try { await connect(saved); return; } catch (e) { /* 句柄失效，走重新选择 */ }
     }
+    // 直接同步弹出选择器：先不 await 权限检查，避免“用户激活被消耗”导致选择器不弹出
     await pickFolder();
   });
   $('#btn-folder').addEventListener('click', switchFolder);
@@ -577,11 +580,13 @@ async function init() {
   if (saved) {
     try {
       const ok = await ensurePermission(saved);
+      savedGranted = ok;
       if (ok) { await connect(saved); return; }
-    } catch (e) { /* 句柄失效，重新选择 */ }
+    } catch (e) { savedGranted = false; /* 句柄失效，重新选择 */ }
     show('welcome');
     toast('请重新授权文件夹访问');
   } else {
+    savedGranted = false;
     show('welcome');
   }
 }
